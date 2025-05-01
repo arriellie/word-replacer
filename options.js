@@ -5,6 +5,9 @@ const addButton = document.getElementById('add-button');
 const cancelButton = document.getElementById('cancel-button');
 const rulesList = document.getElementById('rules-list');
 const statusMessage = document.getElementById('status-message');
+const ruleForm = document.getElementById('rule-form');
+const formTitle = document.getElementById('form-title');
+const addRuleBtn = document.getElementById('add-rule-btn');
 
 // Function to display status messages
 function showStatus(message, duration = 2000) {
@@ -71,43 +74,50 @@ function parseFindString(findString) {
     return findString.split(',').map(item => item.trim()).filter(item => item.length > 0);
 }
 
-// Function to handle editing a rule
-function handleEdit(event) {
-    const index = parseInt(event.target.dataset.index, 10);
-    
-    chrome.storage.sync.get({ rules: [] }, (data) => {
-        const rules = data.rules;
-        const item = rules[index];
-        
-        // Populate the input fields with the current values
-        findInput.value = item.find;
-        replaceInput.value = item.replace;
-        
-        // Change the add button to an update button and show cancel button
-        addButton.textContent = 'Update';
-        addButton.dataset.mode = 'edit';
-        addButton.dataset.index = index;
-        cancelButton.classList.remove('hidden');
-        
-        // Focus the find input
-        findInput.focus();
-    });
+// Function to show the rule form
+function showRuleForm(mode = 'add', index = null) {
+    ruleForm.classList.remove('hidden');
+    if (mode === 'add') {
+        formTitle.textContent = 'Add New Rule';
+        findInput.value = '';
+        replaceInput.value = '';
+        addButton.textContent = 'Save';
+        addButton.dataset.mode = 'add';
+        cancelButton.classList.add('hidden');
+    } else {
+        formTitle.textContent = 'Edit Rule';
+        chrome.storage.sync.get({ rules: [] }, (data) => {
+            const item = data.rules[index];
+            findInput.value = item.find;
+            replaceInput.value = item.replace;
+            addButton.textContent = 'Save';
+            addButton.dataset.mode = 'edit';
+            addButton.dataset.index = index;
+            cancelButton.classList.remove('hidden');
+        });
+    }
+}
+
+// Function to hide the rule form
+function hideRuleForm() {
+    ruleForm.classList.add('hidden');
+    findInput.value = '';
+    replaceInput.value = '';
+    addButton.textContent = 'Save';
+    delete addButton.dataset.mode;
+    delete addButton.dataset.index;
+    cancelButton.classList.add('hidden');
 }
 
 // Function to handle canceling an edit
 function handleCancel() {
-    // Clear input fields
-    findInput.value = '';
-    replaceInput.value = '';
-    
-    // Reset the add button and hide cancel button
-    addButton.textContent = 'Add Rule';
-    delete addButton.dataset.mode;
-    delete addButton.dataset.index;
-    cancelButton.classList.add('hidden');
-    
-    // Focus the find input
-    findInput.focus();
+    hideRuleForm();
+}
+
+// Function to handle editing a rule
+function handleEdit(event) {
+    const index = parseInt(event.target.dataset.index, 10);
+    showRuleForm('edit', index);
 }
 
 // Function to notify all tabs about rule changes
@@ -145,7 +155,7 @@ function handleUpdate(index, findValue, replaceValue) {
             findInput.value = '';
             replaceInput.value = '';
             // Reset the add button and hide cancel button
-            addButton.textContent = 'Add Rule';
+            addButton.textContent = 'Save';
             delete addButton.dataset.mode;
             delete addButton.dataset.index;
             cancelButton.classList.add('hidden');
@@ -209,7 +219,7 @@ function handleAdd() {
             findInput.value = '';
             replaceInput.value = '';
             // Reset the add button and ensure cancel button is hidden
-            addButton.textContent = 'Add Rule';
+            addButton.textContent = 'Save';
             delete addButton.dataset.mode;
             delete addButton.dataset.index;
             cancelButton.classList.add('hidden');
@@ -251,23 +261,25 @@ function escapeHTML(str) {
     return div.innerHTML;
 }
 
-
-// Add event listener for the Add button
-addButton.addEventListener('click', handleAdd);
-
-// Add event listener for the Cancel button
-cancelButton.addEventListener('click', handleCancel);
-
-// Allow adding by pressing Enter in the replace input field
-replaceInput.addEventListener('keypress', (event) => {
-    if (event.key === 'Enter') {
-        handleAdd();
-    }
-});
-
 // Load rules when the options page is opened
 document.addEventListener('DOMContentLoaded', () => {
     loadRules();
-    // Ensure cancel button is hidden on initial load
-    cancelButton.classList.add('hidden');
+    // Ensure form is hidden on initial load
+    hideRuleForm();
+    
+    // Add event listener for the Add Rule button
+    addRuleBtn.addEventListener('click', () => showRuleForm('add'));
+    
+    // Add event listener for the Add button
+    addButton.addEventListener('click', handleAdd);
+    
+    // Add event listener for the Cancel button
+    cancelButton.addEventListener('click', handleCancel);
+    
+    // Allow adding by pressing Enter in the replace input field
+    replaceInput.addEventListener('keypress', (event) => {
+        if (event.key === 'Enter') {
+            handleAdd();
+        }
+    });
 });
