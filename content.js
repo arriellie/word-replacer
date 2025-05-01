@@ -13,12 +13,60 @@ let replacedNodes = new Map(); // Track which nodes have been replaced and with 
 async function fetchReplacements() {
     try {
         const data = await chrome.storage.sync.get({ replacements: [] });
-        replacements = data.replacements || [];
+        const newReplacements = data.replacements || [];
+        
+        // First, revert all existing replacements
+        const walker = document.createTreeWalker(
+            document.body,
+            NodeFilter.SHOW_TEXT,
+            {
+                acceptNode: function (textNode) {
+                    if (!textNode.nodeValue.trim()) {
+                        return NodeFilter.FILTER_REJECT;
+                    }
+                    return NodeFilter.FILTER_ACCEPT;
+                }
+            }
+        );
+
+        let currentNode;
+        const nodesToRevert = [];
+
+        while (currentNode = walker.nextNode()) {
+            if (replacedNodes.has(currentNode)) {
+                const previousReplacements = replacedNodes.get(currentNode);
+                let currentText = currentNode.nodeValue;
+
+                for (const { original, replaced } of previousReplacements) {
+                    const revertRegex = new RegExp(`(^|\\s)${escapeRegExp(replaced)}($|\\s)`, 'gi');
+                    currentText = currentText.replace(revertRegex, (match, leadingSpace, trailingSpace) => {
+                        return (leadingSpace || '') + original + (trailingSpace || '');
+                    });
+                }
+
+                nodesToRevert.push({ node: currentNode, newValue: currentText });
+            }
+        }
+
+        // Apply reversions in a single batch
+        if (nodesToRevert.length > 0) {
+            requestAnimationFrame(() => {
+                nodesToRevert.forEach(({ node, newValue }) => {
+                    try {
+                        node.nodeValue = newValue;
+                    } catch (error) {
+                        console.warn("Word Replacer: Error reverting text:", error);
+                    }
+                });
+            });
+        }
+
+        // Clear the tracking map and update replacements
+        replacedNodes.clear();
+        replacements = newReplacements;
         console.log("Word Replacer: Replacements fetched:", replacements);
         
-        // Clear the tracking map when fetching new rules
-        replacedNodes.clear();
-        // Always perform replacements after fetching, even if empty
+        // Apply new replacements
         performReplacements(document.body);
     } catch (error) {
         console.error("Word Replacer: Error fetching replacements:", error);
