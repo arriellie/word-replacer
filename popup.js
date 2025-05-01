@@ -134,11 +134,8 @@ function saveRule() {
             hideRuleForm();
             renderRules(rules);
             showStatus(saveBtn.dataset.mode === 'edit' ? 'Rule updated successfully!' : 'Rule added successfully!');
-            
-            // Ensure rules are saved before notifying tabs
-            setTimeout(() => {
-                notifyTabsOfRuleChanges();
-            }, 500);
+            // Notify all tabs about the rule change
+            notifyTabsOfRuleChanges();
         });
     });
 }
