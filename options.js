@@ -40,17 +40,98 @@ function renderReplacements(replacements) {
         textSpan.className = 'replacement-text';
         textSpan.innerHTML = `Find: <strong>${escapeHTML(item.find)}</strong>, Replace with: <strong>${escapeHTML(item.replace)}</strong>`; // Use innerHTML carefully
 
+        const buttonContainer = document.createElement('div');
+        buttonContainer.className = 'flex gap-2';
+
+        const editButton = document.createElement('button');
+        editButton.textContent = 'Edit';
+        editButton.className = 'edit-button';
+        editButton.dataset.index = index;
+
         const removeButton = document.createElement('button');
         removeButton.textContent = 'Remove';
-        removeButton.className = 'remove-button'; // Add class for styling
-        removeButton.dataset.index = index; // Store index for removal
+        removeButton.className = 'remove-button';
+        removeButton.dataset.index = index;
 
-        // Add event listener for the remove button
+        // Add event listeners for the buttons
+        editButton.addEventListener('click', handleEdit);
         removeButton.addEventListener('click', handleRemove);
 
+        buttonContainer.appendChild(editButton);
+        buttonContainer.appendChild(removeButton);
         listItem.appendChild(textSpan);
-        listItem.appendChild(removeButton);
+        listItem.appendChild(buttonContainer);
         replacementsList.appendChild(listItem);
+    });
+}
+
+// Function to handle editing a replacement
+function handleEdit(event) {
+    const index = parseInt(event.target.dataset.index, 10);
+    
+    chrome.storage.sync.get({ replacements: [] }, (data) => {
+        const replacements = data.replacements;
+        const item = replacements[index];
+        
+        // Populate the input fields with the current values
+        findInput.value = item.find;
+        replaceInput.value = item.replace;
+        
+        // Change the add button to an update button
+        addButton.textContent = 'Update';
+        addButton.dataset.mode = 'edit';
+        addButton.dataset.index = index;
+        
+        // Focus the find input
+        findInput.focus();
+    });
+}
+
+// Function to notify all tabs about rule changes
+function notifyTabsOfRuleChanges() {
+    console.log("Word Replacer: Notifying tabs of rule changes");
+    chrome.tabs.query({}, (tabs) => {
+        console.log("Word Replacer: Found tabs:", tabs.length);
+        tabs.forEach(tab => {
+            // Skip chrome:// and chrome-extension:// URLs
+            if (!tab.url.startsWith('chrome://') && !tab.url.startsWith('chrome-extension://')) {
+                console.log("Word Replacer: Sending message to tab:", tab.id, tab.url);
+                chrome.tabs.sendMessage(tab.id, { action: 'rulesUpdated' })
+                    .then(() => {
+                        console.log("Word Replacer: Message sent successfully to tab:", tab.id);
+                    })
+                    .catch(error => {
+                        console.log("Word Replacer: Could not send message to tab:", tab.id, error);
+                    });
+            }
+        });
+    });
+}
+
+// Function to handle updating a replacement
+function handleUpdate(index, findValue, replaceValue) {
+    chrome.storage.sync.get({ replacements: [] }, (data) => {
+        const replacements = data.replacements;
+        
+        // Update the replacement at the specified index
+        replacements[index] = { find: findValue, replace: replaceValue };
+        
+        // Save the updated list back to storage
+        chrome.storage.sync.set({ replacements: replacements }, () => {
+            // Clear input fields
+            findInput.value = '';
+            replaceInput.value = '';
+            // Reset the add button
+            addButton.textContent = 'Add Replacement';
+            delete addButton.dataset.mode;
+            delete addButton.dataset.index;
+            // Re-render the list
+            renderReplacements(replacements);
+            showStatus('Replacement updated successfully!');
+            findInput.focus();
+            // Notify all tabs about the rule change
+            notifyTabsOfRuleChanges();
+        });
     });
 }
 
@@ -64,11 +145,17 @@ function handleAdd() {
         showStatus('Both fields are required.', 3000);
         return;
     }
-     if (findValue === replaceValue) {
+    if (findValue === replaceValue) {
         showStatus('Find and Replace values cannot be the same.', 3000);
         return;
     }
 
+    // Check if we're in edit mode
+    if (addButton.dataset.mode === 'edit') {
+        const index = parseInt(addButton.dataset.index, 10);
+        handleUpdate(index, findValue, replaceValue);
+        return;
+    }
 
     chrome.storage.sync.get({ replacements: [] }, (data) => {
         const replacements = data.replacements;
@@ -79,7 +166,6 @@ function handleAdd() {
             showStatus(`A replacement for "${escapeHTML(findValue)}" already exists.`, 3000);
             return;
         }
-
 
         // Add the new replacement
         replacements.push({ find: findValue, replace: replaceValue });
@@ -92,7 +178,9 @@ function handleAdd() {
             // Re-render the list
             renderReplacements(replacements);
             showStatus('Replacement added successfully!');
-            findInput.focus(); // Set focus back to the find input
+            findInput.focus();
+            // Notify all tabs about the rule change
+            notifyTabsOfRuleChanges();
         });
     });
 }
@@ -112,6 +200,8 @@ function handleRemove(event) {
             // Re-render the list
             renderReplacements(replacements);
             showStatus(`Removed replacement for "${escapeHTML(removedItem.find)}".`);
+            // Notify all tabs about the rule change
+            notifyTabsOfRuleChanges();
         });
     });
 }

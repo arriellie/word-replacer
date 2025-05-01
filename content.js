@@ -7,6 +7,7 @@
 console.log("Word Replacer content script loaded.");
 
 let replacements = []; // Store fetched replacements
+let replacedNodes = new Map(); // Track which nodes have been replaced and with what
 
 // Function to fetch replacements from storage
 async function fetchReplacements() {
@@ -15,11 +16,14 @@ async function fetchReplacements() {
         replacements = data.replacements || [];
         console.log("Word Replacer: Replacements fetched:", replacements);
         
+        // Clear the tracking map when fetching new rules
+        replacedNodes.clear();
         // Always perform replacements after fetching, even if empty
         performReplacements(document.body);
     } catch (error) {
         console.error("Word Replacer: Error fetching replacements:", error);
         replacements = []; // Reset to empty array on error
+        replacedNodes.clear();
     }
 }
 
@@ -62,6 +66,35 @@ function smartCapitalize(originalWord, replacementWord) {
     }
 }
 
+// Function to safely check if an element is React-managed
+function isReactElement(element) {
+    if (!element) return false;
+    return element.hasAttribute('data-reactroot') ||
+           element.hasAttribute('data-reactid') ||
+           element.hasAttribute('data-react-checksum') ||
+           element.hasAttribute('data-reactroot') ||
+           element.classList.contains('ReactVirtualized__Grid') ||
+           element.classList.contains('ReactVirtualized__List');
+}
+
+// Function to safely check if an element should be skipped
+function shouldSkipElement(element) {
+    if (!element) return true;
+    
+    const skipTags = ['SCRIPT', 'STYLE', 'TEXTAREA', 'INPUT', 'SELECT', 'CANVAS', 'CODE', 'PRE'];
+    if (skipTags.includes(element.tagName)) return true;
+    
+    if (element.hasAttribute('contenteditable')) return true;
+    
+    // Skip if element or any parent is React-managed
+    let current = element;
+    while (current && current !== document.body) {
+        if (isReactElement(current)) return true;
+        current = current.parentElement;
+    }
+    
+    return false;
+}
 
 /**
  * Performs the word replacements within a given DOM node.
@@ -80,27 +113,21 @@ function performReplacements(node) {
 
     console.log("Word Replacer: Starting replacements with rules:", replacements);
 
-    // Define tags to skip
-    const skipTags = new Set(['SCRIPT', 'STYLE', 'TEXTAREA', 'INPUT', 'SELECT', 'CANVAS', 'CODE', 'PRE']);
-    // Define selectors for contenteditable elements to skip
-    const editableSelector = '[contenteditable="true"], [contenteditable=""]';
-
-    // Use TreeWalker for efficient DOM traversal
+    // Use a more conservative approach to DOM traversal
     const walker = document.createTreeWalker(
         node,
         NodeFilter.SHOW_TEXT,
         {
             acceptNode: function (textNode) {
-                let parent = textNode.parentNode;
-                while (parent && parent !== document.body) {
-                    if (skipTags.has(parent.nodeName.toUpperCase()) || parent.matches(editableSelector)) {
-                        return NodeFilter.FILTER_REJECT;
-                    }
-                    parent = parent.parentNode;
-                }
                 if (!textNode.nodeValue.trim()) {
                     return NodeFilter.FILTER_REJECT;
                 }
+                
+                const parent = textNode.parentElement;
+                if (shouldSkipElement(parent)) {
+                    return NodeFilter.FILTER_REJECT;
+                }
+                
                 return NodeFilter.FILTER_ACCEPT;
             }
         }
@@ -113,35 +140,70 @@ function performReplacements(node) {
         let nodeValueChanged = false;
         let currentText = currentNode.nodeValue;
 
-        for (const rule of replacements) {
-            // Modified regex to preserve spaces
-            const findRegex = new RegExp(`(^|\\s)${escapeRegExp(rule.find)}($|\\s)`, 'gi');
+        // If this node was previously replaced, revert it first
+        if (replacedNodes.has(currentNode)) {
+            const previousReplacements = replacedNodes.get(currentNode);
+            for (const { original, replaced } of previousReplacements) {
+                const revertRegex = new RegExp(`(^|\\s)${escapeRegExp(replaced)}($|\\s)`, 'gi');
+                currentText = currentText.replace(revertRegex, (match, leadingSpace, trailingSpace) => {
+                    return (leadingSpace || '') + original + (trailingSpace || '');
+                });
+            }
+            replacedNodes.delete(currentNode);
+        }
 
+        const currentReplacements = [];
+
+        for (const rule of replacements) {
+            const findRegex = new RegExp(`(^|\\s)${escapeRegExp(rule.find)}($|\\s)`, 'gi');
+            
             if (findRegex.test(currentText)) {
                 currentText = currentText.replace(findRegex, (match, leadingSpace, trailingSpace) => {
                     nodeValueChanged = true;
-                    const replacement = smartCapitalize(match.trim(), rule.replace);
+                    const originalWord = match.trim();
+                    const replacement = smartCapitalize(originalWord, rule.replace);
+                    currentReplacements.push({ original: originalWord, replaced: replacement });
                     return (leadingSpace || '') + replacement + (trailingSpace || '');
                 });
             }
         }
 
         if (nodeValueChanged) {
+            if (currentReplacements.length > 0) {
+                replacedNodes.set(currentNode, currentReplacements);
+            }
             nodesToReplace.push({ node: currentNode, newValue: currentText });
         }
     }
 
+    // Apply replacements in a single batch
     if (nodesToReplace.length > 0) {
-        nodesToReplace.forEach(item => {
-            item.node.nodeValue = item.newValue;
+        requestAnimationFrame(() => {
+            nodesToReplace.forEach(({ node, newValue }) => {
+                try {
+                    node.nodeValue = newValue;
+                } catch (error) {
+                    console.warn("Word Replacer: Error replacing text:", error);
+                }
+            });
         });
     }
 }
 
-// --- Main Execution ---
-
-// 1. Fetch replacements initially
-fetchReplacements();
+// Modify the initial load to wait for React to finish rendering
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        // Wait for React to finish its initial render
+        setTimeout(() => {
+            fetchReplacements().then(() => performReplacements(document.body));
+        }, 1000);
+    });
+} else {
+    // Already loaded or interactive/complete
+    setTimeout(() => {
+        fetchReplacements().then(() => performReplacements(document.body));
+    }, 1000);
+}
 
 // 2. Set up MutationObserver to watch for dynamic content changes
 const observer = new MutationObserver((mutationsList) => {
@@ -192,21 +254,26 @@ observer.observe(document.body, {
 // 3. Listen for changes in storage (e.g., user updates rules in options)
 chrome.storage.onChanged.addListener((changes, namespace) => {
     if (namespace === 'sync' && changes.replacements) {
-        console.log("Word Replacer: Detected change in stored replacements.");
+        console.log("Word Replacer: Storage change detected");
         replacements = changes.replacements.newValue || [];
-        // Optionally, re-run replacements on the whole page if rules change significantly
-        // This can be intensive, so consider if it's truly needed.
-        // For simplicity, we'll rely on the initial load and MutationObserver
-        // for future changes. If a full re-scan is desired:
-        // performReplacements(document.body);
+        // Reapply replacements to the entire page
+        performReplacements(document.body);
     }
 });
 
-// Ensure replacements run after the initial HTML is parsed,
-// even if the script is injected early.
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => fetchReplacements().then(() => performReplacements(document.body)));
-} else {
-    // Already loaded or interactive/complete
-    fetchReplacements().then(() => performReplacements(document.body));
-}
+// Listen for messages from the options page
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    console.log("Word Replacer: Received message:", message);
+    if (message.action === 'rulesUpdated') {
+        console.log("Word Replacer: Rules update requested");
+        // Fetch the latest rules and reapply them
+        fetchReplacements().then(() => {
+            console.log("Word Replacer: Fetched new rules, reapplying to page");
+            // Reapply replacements to the entire page
+            performReplacements(document.body);
+        }).catch(error => {
+            console.error("Word Replacer: Error updating rules:", error);
+        });
+    }
+    return true; // Keep the message channel open for async responses
+});

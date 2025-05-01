@@ -5,7 +5,8 @@
     "description": "Replaces specified words on web pages with smart capitalization.",
     "permissions": [
       "storage",
-      "scripting"
+      "scripting",
+      "tabs"
     ],
     "host_permissions": [
       "<all_urls>"
