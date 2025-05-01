@@ -15,6 +15,8 @@ async function fetchRules() {
         const data = await chrome.storage.sync.get({ rules: [] });
         const newRules = data.rules || [];
         
+        console.log("Word Replacer: Fetching rules, current rules:", rules, "new rules:", newRules);
+        
         // First, revert all existing rules
         const walker = document.createTreeWalker(
             document.body,
@@ -34,10 +36,23 @@ async function fetchRules() {
 
         while (currentNode = walker.nextNode()) {
             if (replacedNodes.has(currentNode)) {
-                const previousRules = replacedNodes.get(currentNode);
+                const previousReplacements = replacedNodes.get(currentNode);
                 let currentText = currentNode.nodeValue;
 
-                for (const { original, replaced } of previousRules) {
+                // Process replacements in reverse order to handle nested replacements
+                for (let i = previousReplacements.length - 1; i >= 0; i--) {
+                    const { original, replaced } = previousReplacements[i];
+                    
+                    // Check if this rule is being edited
+                    const isBeingEdited = newRules.some(rule => 
+                        rule.find.toLowerCase() === original.toLowerCase() && 
+                        rule.replace.toLowerCase() !== replaced.toLowerCase()
+                    );
+                    
+                    if (isBeingEdited) {
+                        console.log("Word Replacer: Reverting edited rule:", original, "->", replaced);
+                    }
+
                     const revertRegex = new RegExp(`(^|\\s)${escapeRegExp(replaced)}($|\\s)`, 'gi');
                     currentText = currentText.replace(revertRegex, (match, leadingSpace, trailingSpace) => {
                         return (leadingSpace || '') + original + (trailingSpace || '');
@@ -64,7 +79,7 @@ async function fetchRules() {
         // Clear the tracking map and update rules
         replacedNodes.clear();
         rules = newRules;
-        console.log("Word Replacer: Rules fetched:", rules);
+        console.log("Word Replacer: Rules fetched and reverted, applying new rules:", rules);
         
         // Apply new rules
         performReplacements(document.body);
@@ -187,9 +202,8 @@ function performReplacements(node) {
     );
 
     const nodesToReplace = [];
-    const replacedNodes = new Map();
-
     let currentNode;
+
     while (currentNode = walker.nextNode()) {
         let nodeValueChanged = false;
         let currentText = currentNode.nodeValue;
@@ -215,9 +229,11 @@ function performReplacements(node) {
         }
 
         if (nodeValueChanged) {
-            if (currentReplacements.length > 0) {
-                replacedNodes.set(currentNode, currentReplacements);
+            // Store the original text and replacements for this node
+            if (!replacedNodes.has(currentNode)) {
+                replacedNodes.set(currentNode, []);
             }
+            replacedNodes.get(currentNode).push(...currentReplacements);
             nodesToReplace.push({ node: currentNode, newValue: currentText });
         }
     }
@@ -317,8 +333,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             console.log("Word Replacer: Fetched new rules, reapplying to page");
             // Reapply rules to the entire page
             performReplacements(document.body);
+            // Send response to acknowledge receipt
+            sendResponse({ success: true });
         }).catch(error => {
             console.error("Word Replacer: Error updating rules:", error);
+            sendResponse({ success: false, error: error.message });
         });
     }
     return true; // Keep the message channel open for async responses

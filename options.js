@@ -163,8 +163,11 @@ function handleUpdate(index, findValue, replaceValue) {
             renderRules(rules);
             showStatus('Rule updated successfully!');
             findInput.focus();
-            // Notify all tabs about the rule change
-            notifyTabsOfRuleChanges();
+            
+            // Ensure rules are saved before notifying tabs
+            setTimeout(() => {
+                notifyTabsOfRuleChanges();
+            }, 500); // Increased delay to 500ms
         });
     });
 }

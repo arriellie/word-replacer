@@ -134,7 +134,11 @@ function saveRule() {
             hideRuleForm();
             renderRules(rules);
             showStatus(saveBtn.dataset.mode === 'edit' ? 'Rule updated successfully!' : 'Rule added successfully!');
-            notifyTabsOfRuleChanges();
+            
+            // Ensure rules are saved before notifying tabs
+            setTimeout(() => {
+                notifyTabsOfRuleChanges();
+            }, 500);
         });
     });
 }
@@ -162,9 +166,15 @@ function editRule(index) {
 function notifyTabsOfRuleChanges() {
     chrome.tabs.query({}, (tabs) => {
         tabs.forEach(tab => {
-            if (!tab.url.startsWith('chrome://') && !tab.url.startsWith('chrome-extension://')) {
+            // Skip chrome:// and chrome-extension:// URLs, and check if URL exists
+            if (tab.url && !tab.url.startsWith('chrome://') && !tab.url.startsWith('chrome-extension://')) {
                 chrome.tabs.sendMessage(tab.id, { action: 'rulesUpdated' })
-                    .catch(() => {});
+                    .then(() => {
+                        console.log("Word Replacer: Message sent successfully to tab:", tab.id);
+                    })
+                    .catch(error => {
+                        console.log("Word Replacer: Could not send message to tab:", tab.id, error);
+                    });
             }
         });
     });
