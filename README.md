@@ -1,6 +1,6 @@
 # Word Replacer Browser Extension
 
-A browser extension that allows you to replace specified words and phrases on web pages with smart capitalization. Built with modern web technologies and a clean, user-friendly interface.
+A browser extension that allows you to replace specified words and phrases on web pages with smart* capitalization.
 
 ## Features
 
@@ -8,6 +8,7 @@ A browser extension that allows you to replace specified words and phrases on we
 - Smart capitalization handling (preserves original case patterns)
 - Easy-to-use rule management interface
 - Live page updates as you change rules
+- Probably won't let you accidentally create infinite loops :)
 
 ## Installation
 
