@@ -4,8 +4,6 @@
  * applying smart capitalization.
  */
 
-console.log("Word Replacer content script loaded.");
-
 let rules = []; // Store fetched rules
 let replacedNodes = new Map(); // Track which nodes have been replaced and with what
 
@@ -14,8 +12,6 @@ async function fetchRules() {
     try {
         const data = await chrome.storage.sync.get({ rules: [] });
         const newRules = data.rules || [];
-        
-        console.log("Word Replacer: Fetching rules, current rules:", rules, "new rules:", newRules);
         
         // First, revert all existing rules
         const walker = document.createTreeWalker(
@@ -50,7 +46,7 @@ async function fetchRules() {
                     );
                     
                     if (isBeingEdited) {
-                        console.log("Word Replacer: Reverting edited rule:", original, "->", replaced);
+                        console.debug("Word Replacer: Reverting edited rule:", original, "->", replaced);
                     }
 
                     const revertRegex = new RegExp(`(^|\\s)${escapeRegExp(replaced)}($|\\s)`, 'gi');
@@ -79,7 +75,6 @@ async function fetchRules() {
         // Clear the tracking map and update rules
         replacedNodes.clear();
         rules = newRules;
-        console.log("Word Replacer: Rules fetched and reverted, applying new rules:", rules);
         
         // Apply new rules
         performReplacements(document.body);

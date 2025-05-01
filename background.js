@@ -5,12 +5,10 @@
 
 // Log when the extension is installed or updated
 chrome.runtime.onInstalled.addListener((details) => {
-    console.log("Word Replacer extension installed or updated.", details);
+    console.debug("Word Replacer extension installed or updated.", details);
     // You could potentially set default rules here on first install
     if (details.reason === "install") {
-        // Maybe open the options page on first install?
-        // chrome.runtime.openOptionsPage();
-        console.log("Word Replacer installed for the first time!");
+        console.debug("Word Replacer installed for the first time!");
          // Set initial empty rules array if it doesn't exist
          chrome.storage.sync.get('rules', (data) => {
             if (!data.rules) {
@@ -20,20 +18,16 @@ chrome.runtime.onInstalled.addListener((details) => {
     }
 });
 
-// Log when the service worker starts
-console.log("Word Replacer service worker started.");
-
 // Handle clicking the extension icon
 chrome.action.onClicked.addListener((tab) => {
     // When the icon is clicked, open the options page
-    console.log("Extension icon clicked, opening options page.");
+    console.debug("Extension icon clicked, opening options page.");
     chrome.runtime.openOptionsPage();
 });
 
-
 // Listen for messages (optional, can be used for communication between scripts)
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    console.log("Background script received message:", message, "from sender:", sender);
+    console.debug("Background script received message:", message, "from sender:", sender);
     // Example: Handle a request from content script if needed
     if (message.action === "getRules") {
         chrome.storage.sync.get({ rules: [] }, (data) => {
