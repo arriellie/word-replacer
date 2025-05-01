@@ -4,6 +4,11 @@ body {
     min-width: 400px; /* Prevent options page from being too narrow */
 }
 
+/* Ensure hidden class is respected */
+.hidden {
+    display: none !important;
+}
+
 /* Help tooltip styles */
 .help-tooltip {
     position: relative;

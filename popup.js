@@ -72,6 +72,7 @@ function showRuleForm(mode = 'add', index = null) {
         findInput.value = '';
         replaceInput.value = '';
         saveBtn.dataset.mode = 'add';
+        cancelBtn.classList.add('hidden');
     } else {
         formTitle.textContent = 'Edit Rule';
         chrome.storage.sync.get({ rules: [] }, (data) => {
@@ -80,6 +81,7 @@ function showRuleForm(mode = 'add', index = null) {
             replaceInput.value = rule.replace;
             saveBtn.dataset.mode = 'edit';
             saveBtn.dataset.index = index;
+            cancelBtn.classList.remove('hidden');
         });
     }
 }
@@ -91,6 +93,7 @@ function hideRuleForm() {
     replaceInput.value = '';
     delete saveBtn.dataset.mode;
     delete saveBtn.dataset.index;
+    cancelBtn.classList.add('hidden');
 }
 
 // Function to handle adding/editing a rule
@@ -180,4 +183,8 @@ cancelBtn.addEventListener('click', hideRuleForm);
 saveBtn.addEventListener('click', saveRule);
 
 // Load rules when the popup is opened
-document.addEventListener('DOMContentLoaded', loadRules); 
+document.addEventListener('DOMContentLoaded', () => {
+    loadRules();
+    // Ensure cancel button is hidden on initial load
+    cancelBtn.classList.add('hidden');
+}); 

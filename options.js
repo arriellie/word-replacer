@@ -2,6 +2,7 @@
 const findInput = document.getElementById('find-input');
 const replaceInput = document.getElementById('replace-input');
 const addButton = document.getElementById('add-button');
+const cancelButton = document.getElementById('cancel-button');
 const rulesList = document.getElementById('rules-list');
 const statusMessage = document.getElementById('status-message');
 
@@ -82,14 +83,31 @@ function handleEdit(event) {
         findInput.value = item.find;
         replaceInput.value = item.replace;
         
-        // Change the add button to an update button
+        // Change the add button to an update button and show cancel button
         addButton.textContent = 'Update';
         addButton.dataset.mode = 'edit';
         addButton.dataset.index = index;
+        cancelButton.classList.remove('hidden');
         
         // Focus the find input
         findInput.focus();
     });
+}
+
+// Function to handle canceling an edit
+function handleCancel() {
+    // Clear input fields
+    findInput.value = '';
+    replaceInput.value = '';
+    
+    // Reset the add button and hide cancel button
+    addButton.textContent = 'Add Rule';
+    delete addButton.dataset.mode;
+    delete addButton.dataset.index;
+    cancelButton.classList.add('hidden');
+    
+    // Focus the find input
+    findInput.focus();
 }
 
 // Function to notify all tabs about rule changes
@@ -98,8 +116,8 @@ function notifyTabsOfRuleChanges() {
     chrome.tabs.query({}, (tabs) => {
         console.log("Word Replacer: Found tabs:", tabs.length);
         tabs.forEach(tab => {
-            // Skip chrome:// and chrome-extension:// URLs
-            if (!tab.url.startsWith('chrome://') && !tab.url.startsWith('chrome-extension://')) {
+            // Skip chrome:// and chrome-extension:// URLs, and check if URL exists
+            if (tab.url && !tab.url.startsWith('chrome://') && !tab.url.startsWith('chrome-extension://')) {
                 console.log("Word Replacer: Sending message to tab:", tab.id, tab.url);
                 chrome.tabs.sendMessage(tab.id, { action: 'rulesUpdated' })
                     .then(() => {
@@ -126,10 +144,11 @@ function handleUpdate(index, findValue, replaceValue) {
             // Clear input fields
             findInput.value = '';
             replaceInput.value = '';
-            // Reset the add button
+            // Reset the add button and hide cancel button
             addButton.textContent = 'Add Rule';
             delete addButton.dataset.mode;
             delete addButton.dataset.index;
+            cancelButton.classList.add('hidden');
             // Re-render the list
             renderRules(rules);
             showStatus('Rule updated successfully!');
@@ -189,6 +208,11 @@ function handleAdd() {
             // Clear input fields
             findInput.value = '';
             replaceInput.value = '';
+            // Reset the add button and ensure cancel button is hidden
+            addButton.textContent = 'Add Rule';
+            delete addButton.dataset.mode;
+            delete addButton.dataset.index;
+            cancelButton.classList.add('hidden');
             // Re-render the list
             renderRules(rules);
             showStatus('Rule added successfully!');
@@ -231,6 +255,9 @@ function escapeHTML(str) {
 // Add event listener for the Add button
 addButton.addEventListener('click', handleAdd);
 
+// Add event listener for the Cancel button
+cancelButton.addEventListener('click', handleCancel);
+
 // Allow adding by pressing Enter in the replace input field
 replaceInput.addEventListener('keypress', (event) => {
     if (event.key === 'Enter') {
@@ -239,4 +266,8 @@ replaceInput.addEventListener('keypress', (event) => {
 });
 
 // Load rules when the options page is opened
-document.addEventListener('DOMContentLoaded', loadRules);
+document.addEventListener('DOMContentLoaded', () => {
+    loadRules();
+    // Ensure cancel button is hidden on initial load
+    cancelButton.classList.add('hidden');
+});
