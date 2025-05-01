@@ -13,13 +13,13 @@ async function fetchReplacements() {
     try {
         const data = await chrome.storage.sync.get({ replacements: [] });
         replacements = data.replacements || [];
-        console.log("Replacements fetched:", replacements);
-        // Trigger initial replacement after fetching
-        if (replacements.length > 0) {
-            performReplacements(document.body);
-        }
+        console.log("Word Replacer: Replacements fetched:", replacements);
+        
+        // Always perform replacements after fetching, even if empty
+        performReplacements(document.body);
     } catch (error) {
         console.error("Word Replacer: Error fetching replacements:", error);
+        replacements = []; // Reset to empty array on error
     }
 }
 
@@ -68,15 +68,17 @@ function smartCapitalize(originalWord, replacementWord) {
  * @param {Node} node - The DOM node to process (usually document.body or a newly added node).
  */
 function performReplacements(node) {
-    if (!replacements || replacements.length === 0) {
-        // console.log("Word Replacer: No replacements defined or loaded.");
-        return; // No rules to apply
-    }
-     if (!node) {
-        // console.warn("Word Replacer: performReplacements called with null node.");
+    if (!node) {
+        console.warn("Word Replacer: performReplacements called with null node.");
         return;
-     }
+    }
 
+    if (!replacements || replacements.length === 0) {
+        console.log("Word Replacer: No replacements defined or loaded.");
+        return;
+    }
+
+    console.log("Word Replacer: Starting replacements with rules:", replacements);
 
     // Define tags to skip
     const skipTags = new Set(['SCRIPT', 'STYLE', 'TEXTAREA', 'INPUT', 'SELECT', 'CANVAS', 'CODE', 'PRE']);
@@ -86,65 +88,54 @@ function performReplacements(node) {
     // Use TreeWalker for efficient DOM traversal
     const walker = document.createTreeWalker(
         node,
-        NodeFilter.SHOW_TEXT, // Only interested in text nodes
+        NodeFilter.SHOW_TEXT,
         {
             acceptNode: function (textNode) {
-                // Skip nodes within specified tags or contenteditable elements
                 let parent = textNode.parentNode;
                 while (parent && parent !== document.body) {
                     if (skipTags.has(parent.nodeName.toUpperCase()) || parent.matches(editableSelector)) {
-                        return NodeFilter.FILTER_REJECT; // Skip this node and its children
+                        return NodeFilter.FILTER_REJECT;
                     }
                     parent = parent.parentNode;
                 }
-                 // Skip nodes that are purely whitespace
-                 if (!textNode.nodeValue.trim()) {
+                if (!textNode.nodeValue.trim()) {
                     return NodeFilter.FILTER_REJECT;
-                 }
-
-                return NodeFilter.FILTER_ACCEPT; // Process this node
+                }
+                return NodeFilter.FILTER_ACCEPT;
             }
         }
     );
 
     let currentNode;
-    const nodesToReplace = []; // Collect nodes to modify after traversal
+    const nodesToReplace = [];
 
-    // First pass: Find all nodes that need replacement
     while (currentNode = walker.nextNode()) {
         let nodeValueChanged = false;
         let currentText = currentNode.nodeValue;
 
         for (const rule of replacements) {
-            // Important: Create the regex for each rule inside the loop
-            // Use word boundaries (\b) to match whole words/phrases only.
-            // Use 'gi' flags for global and case-insensitive matching.
-            const findRegex = new RegExp(`\\b${escapeRegExp(rule.find)}\\b`, 'gi');
+            // Modified regex to preserve spaces
+            const findRegex = new RegExp(`(^|\\s)${escapeRegExp(rule.find)}($|\\s)`, 'gi');
 
-            // Use replace with a function to handle smart capitalization for each match
-             if (findRegex.test(currentText)) {
-                 currentText = currentText.replace(findRegex, (match) => {
-                     nodeValueChanged = true; // Mark that a change occurred
-                     // console.log(`Replacing "${match}" with capitalized version of "${rule.replace}"`);
-                     return smartCapitalize(match, rule.replace);
-                 });
-             }
+            if (findRegex.test(currentText)) {
+                currentText = currentText.replace(findRegex, (match, leadingSpace, trailingSpace) => {
+                    nodeValueChanged = true;
+                    const replacement = smartCapitalize(match.trim(), rule.replace);
+                    return (leadingSpace || '') + replacement + (trailingSpace || '');
+                });
+            }
         }
 
         if (nodeValueChanged) {
-            // Store the node and its new text value
             nodesToReplace.push({ node: currentNode, newValue: currentText });
         }
     }
 
-     // Second pass: Apply the changes
-     // Modifying nodes while iterating can cause issues, so we do it separately.
-     if (nodesToReplace.length > 0) {
-         // console.log(`Word Replacer: Applying ${nodesToReplace.length} replacements.`);
-         nodesToReplace.forEach(item => {
-             item.node.nodeValue = item.newValue;
-         });
-     }
+    if (nodesToReplace.length > 0) {
+        nodesToReplace.forEach(item => {
+            item.node.nodeValue = item.newValue;
+        });
+    }
 }
 
 // --- Main Execution ---

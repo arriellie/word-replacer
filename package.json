@@ -1,0 +1,23 @@
+{
+  "name": "word-replacer",
+  "version": "1.0.0",
+  "description": "A browser extension that allows you to replace specified words on web pages with smart capitalization.",
+  "main": "background.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arriellie/word-replacer.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/arriellie/word-replacer/issues"
+  },
+  "homepage": "https://github.com/arriellie/word-replacer#readme",
+  "devDependencies": {
+    "tailwindcss": "^4.1.5"
+  }
+}

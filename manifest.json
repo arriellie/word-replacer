@@ -4,14 +4,25 @@
     "version": "1.0",
     "description": "Replaces specified words on web pages with smart capitalization.",
     "permissions": [
-      "storage", // To save replacement rules
-      "scripting" // To inject content script programmatically (more flexible)
+      "storage",
+      "scripting"
     ],
     "host_permissions": [
-      "<all_urls>" // Allows the script to run on all websites
+      "<all_urls>"
     ],
+    "content_scripts": [
+      {
+        "matches": ["<all_urls>"],
+        "js": ["content.js"],
+        "run_at": "document_end"
+      }
+    ],
+    "web_accessible_resources": [{
+      "resources": ["css/*"],
+      "matches": ["<all_urls>"]
+    }],
     "background": {
-      "service_worker": "background.js" // Needed for scripting API and event listeners
+      "service_worker": "background.js"
     },
     "options_page": "options.html",
     "action": {
@@ -21,12 +32,11 @@
         "128": "icons/icon128.png"
       },
       "default_title": "Word Replacer Options"
-      // Opens options page when clicked, handled in background.js
     },
     "icons": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",
       "128": "icons/icon128.png"
     }
-  }
+}
   
