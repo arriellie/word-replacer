@@ -149,7 +149,7 @@ function saveRule() {
             
             // Check for circular dependencies with the new rule
             if (hasCircularDependency(tempRules, findValue, replaceValue)) {
-                showStatus('This rule would create a circular dependency. Please choose a different replacement word.', 3000);
+                showStatus('This replacement word would create an endless loop. Please choose a different word.', 3000);
                 return;
             }
             
@@ -157,7 +157,7 @@ function saveRule() {
         } else {
             // Check for circular dependencies
             if (hasCircularDependency(rules, findValue, replaceValue)) {
-                showStatus('This rule would create a circular dependency. Please choose a different replacement word.', 3000);
+                showStatus('This replacement word would create an endless loop. Please choose a different word.', 3000);
                 return;
             }
             
