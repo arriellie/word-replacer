@@ -4,7 +4,6 @@ const replaceInput = document.getElementById('replace-input');
 const addButton = document.getElementById('add-button');
 const replacementsList = document.getElementById('replacements-list');
 const statusMessage = document.getElementById('status-message');
-const isPhraseCheckbox = document.getElementById('is-phrase');
 
 // Function to display status messages
 function showStatus(message, duration = 2000) {
@@ -39,14 +38,7 @@ function renderReplacements(replacements) {
 
         const textSpan = document.createElement('span');
         textSpan.className = 'replacement-text';
-        
-        // Parse the find string to show phrases in quotes
-        const findItems = parseFindString(item.find);
-        const formattedFind = findItems.map(item => 
-            item.isPhrase ? `"${item.text}"` : item.text
-        ).join(', ');
-        
-        textSpan.innerHTML = `Find: <strong>${escapeHTML(formattedFind)}</strong>, Replace with: <strong>${escapeHTML(item.replace)}</strong>`;
+        textSpan.innerHTML = `Find: <strong>${escapeHTML(item.find)}</strong>, Replace with: <strong>${escapeHTML(item.replace)}</strong>`;
 
         const buttonContainer = document.createElement('div');
         buttonContainer.className = 'flex gap-2';
@@ -75,46 +67,7 @@ function renderReplacements(replacements) {
 
 // Function to parse the find string into individual words and phrases
 function parseFindString(findString) {
-    const items = [];
-    let currentItem = '';
-    let inQuotes = false;
-    
-    for (let i = 0; i < findString.length; i++) {
-        const char = findString[i];
-        
-        if (char === '"') {
-            if (inQuotes) {
-                // End of phrase
-                if (currentItem.trim()) {
-                    items.push({ text: currentItem.trim(), isPhrase: true });
-                }
-                currentItem = '';
-                inQuotes = false;
-            } else {
-                // Start of phrase
-                if (currentItem.trim()) {
-                    items.push({ text: currentItem.trim(), isPhrase: false });
-                }
-                currentItem = '';
-                inQuotes = true;
-            }
-        } else if (char === ',' && !inQuotes) {
-            // End of word
-            if (currentItem.trim()) {
-                items.push({ text: currentItem.trim(), isPhrase: false });
-            }
-            currentItem = '';
-        } else {
-            currentItem += char;
-        }
-    }
-    
-    // Add the last item
-    if (currentItem.trim()) {
-        items.push({ text: currentItem.trim(), isPhrase: inQuotes });
-    }
-    
-    return items;
+    return findString.split(',').map(item => item.trim()).filter(item => item.length > 0);
 }
 
 // Function to handle editing a replacement
@@ -128,7 +81,6 @@ function handleEdit(event) {
         // Populate the input fields with the current values
         findInput.value = item.find;
         replaceInput.value = item.replace;
-        isPhraseCheckbox.checked = item.isPhrase || false;
         
         // Change the add button to an update button
         addButton.textContent = 'Update';
@@ -162,19 +114,18 @@ function notifyTabsOfRuleChanges() {
 }
 
 // Function to handle updating a replacement
-function handleUpdate(index, findValue, replaceValue, isPhrase) {
+function handleUpdate(index, findValue, replaceValue) {
     chrome.storage.sync.get({ replacements: [] }, (data) => {
         const replacements = data.replacements;
         
         // Update the replacement at the specified index
-        replacements[index] = { find: findValue, replace: replaceValue, isPhrase };
+        replacements[index] = { find: findValue, replace: replaceValue };
         
         // Save the updated list back to storage
         chrome.storage.sync.set({ replacements: replacements }, () => {
             // Clear input fields
             findInput.value = '';
             replaceInput.value = '';
-            isPhraseCheckbox.checked = false;
             // Reset the add button
             addButton.textContent = 'Add Replacement';
             delete addButton.dataset.mode;

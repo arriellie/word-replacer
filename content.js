@@ -147,49 +147,10 @@ function shouldSkipElement(element) {
 /**
  * Parses the find string into individual words and phrases
  * @param {string} findString - The string containing words and phrases to find
- * @returns {Array<{text: string, isPhrase: boolean}>} Array of objects containing the text and whether it's a phrase
+ * @returns {Array<string>} Array of words and phrases to find
  */
 function parseFindString(findString) {
-    const items = [];
-    let currentItem = '';
-    let inQuotes = false;
-    
-    for (let i = 0; i < findString.length; i++) {
-        const char = findString[i];
-        
-        if (char === '"') {
-            if (inQuotes) {
-                // End of phrase
-                if (currentItem.trim()) {
-                    items.push({ text: currentItem.trim(), isPhrase: true });
-                }
-                currentItem = '';
-                inQuotes = false;
-            } else {
-                // Start of phrase
-                if (currentItem.trim()) {
-                    items.push({ text: currentItem.trim(), isPhrase: false });
-                }
-                currentItem = '';
-                inQuotes = true;
-            }
-        } else if (char === ',' && !inQuotes) {
-            // End of word
-            if (currentItem.trim()) {
-                items.push({ text: currentItem.trim(), isPhrase: false });
-            }
-            currentItem = '';
-        } else {
-            currentItem += char;
-        }
-    }
-    
-    // Add the last item
-    if (currentItem.trim()) {
-        items.push({ text: currentItem.trim(), isPhrase: inQuotes });
-    }
-    
-    return items;
+    return findString.split(',').map(item => item.trim()).filter(item => item.length > 0);
 }
 
 /**
@@ -209,59 +170,37 @@ function performReplacements(node) {
 
     console.log("Word Replacer: Starting replacements with rules:", replacements);
 
-    // Use a more conservative approach to DOM traversal
     const walker = document.createTreeWalker(
         node,
         NodeFilter.SHOW_TEXT,
         {
-            acceptNode: function (textNode) {
-                if (!textNode.nodeValue.trim()) {
+            acceptNode: function(node) {
+                // Skip script and style elements
+                if (node.parentNode.nodeName === 'SCRIPT' || 
+                    node.parentNode.nodeName === 'STYLE' ||
+                    node.parentNode.nodeName === 'TEXTAREA') {
                     return NodeFilter.FILTER_REJECT;
                 }
-                
-                const parent = textNode.parentElement;
-                if (shouldSkipElement(parent)) {
-                    return NodeFilter.FILTER_REJECT;
-                }
-                
                 return NodeFilter.FILTER_ACCEPT;
             }
         }
     );
 
-    let currentNode;
     const nodesToReplace = [];
+    const replacedNodes = new Map();
 
+    let currentNode;
     while (currentNode = walker.nextNode()) {
         let nodeValueChanged = false;
         let currentText = currentNode.nodeValue;
-
-        // If this node was previously replaced, revert it first
-        if (replacedNodes.has(currentNode)) {
-            const previousReplacements = replacedNodes.get(currentNode);
-            for (const { original, replaced } of previousReplacements) {
-                const revertRegex = new RegExp(`(^|\\s)${escapeRegExp(replaced)}($|\\s)`, 'gi');
-                currentText = currentText.replace(revertRegex, (match, leadingSpace, trailingSpace) => {
-                    return (leadingSpace || '') + original + (trailingSpace || '');
-                });
-            }
-            replacedNodes.delete(currentNode);
-        }
-
-        const currentReplacements = [];
+        let currentReplacements = [];
 
         for (const rule of replacements) {
             const findItems = parseFindString(rule.find);
             
             for (const item of findItems) {
-                let findRegex;
-                if (item.isPhrase) {
-                    // For phrases, match the entire phrase as a single unit
-                    findRegex = new RegExp(`(^|\\s)${escapeRegExp(item.text)}($|\\s)`, 'gi');
-                } else {
-                    // For individual words, match the word exactly
-                    findRegex = new RegExp(`(^|\\s)${escapeRegExp(item.text)}($|\\s)`, 'gi');
-                }
+                // Create a regex that matches the word or phrase as a whole word
+                const findRegex = new RegExp(`(^|\\s)${escapeRegExp(item)}($|\\s)`, 'gi');
                 
                 if (findRegex.test(currentText)) {
                     currentText = currentText.replace(findRegex, (match, leadingSpace, trailingSpace) => {
