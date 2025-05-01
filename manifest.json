@@ -2,11 +2,11 @@
     "manifest_version": 3,
     "name": "Word Replacer",
     "version": "1.0",
-    "description": "Replaces specified words on web pages with smart capitalization.",
+    "description": "Replace words on web pages with your own custom replacements",
     "permissions": [
       "storage",
-      "scripting",
-      "tabs"
+      "activeTab",
+      "scripting"
     ],
     "host_permissions": [
       "<all_urls>"
@@ -27,6 +27,7 @@
     },
     "options_page": "options.html",
     "action": {
+      "default_popup": "popup.html",
       "default_icon": {
         "16": "icons/icon16.png",
         "48": "icons/icon48.png",
