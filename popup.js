@@ -96,6 +96,61 @@ function hideRuleForm() {
     cancelBtn.classList.add('hidden');
 }
 
+// Function to parse the find string into individual words and phrases
+function parseFindString(findString) {
+    return findString.split(',').map(item => item.trim()).filter(item => item.length > 0);
+}
+
+// Function to detect circular dependencies in rules
+function hasCircularDependency(rules, newFind, newReplace) {
+    // Create a map of all find->replace relationships
+    const ruleMap = new Map();
+    rules.forEach(rule => {
+        // Split the find string into individual words/phrases
+        const findItems = parseFindString(rule.find);
+        findItems.forEach(item => {
+            ruleMap.set(item.toLowerCase(), rule.replace.toLowerCase());
+        });
+    });
+    
+    // Add the new rule to the map for checking
+    const newFindItems = parseFindString(newFind);
+    newFindItems.forEach(item => {
+        ruleMap.set(item.toLowerCase(), newReplace.toLowerCase());
+    });
+    
+    // Check for circular dependencies by following all possible paths
+    const visited = new Set();
+    const checkPath = (word) => {
+        if (visited.has(word)) {
+            return true; // Found a cycle
+        }
+        visited.add(word);
+        
+        // Get all words in the replacement that could be part of a rule
+        const replacementWords = ruleMap.get(word)?.split(/\s+/) || [];
+        
+        // Check each word in the replacement
+        for (const replacementWord of replacementWords) {
+            if (ruleMap.has(replacementWord) && checkPath(replacementWord)) {
+                return true;
+            }
+        }
+        
+        visited.delete(word);
+        return false;
+    };
+    
+    // Check each word in the new find string
+    for (const findItem of newFindItems) {
+        if (checkPath(findItem.toLowerCase())) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
 // Function to handle adding/editing a rule
 function saveRule() {
     const findValue = findInput.value.trim();
@@ -117,8 +172,24 @@ function saveRule() {
         if (saveBtn.dataset.mode === 'edit') {
             // Edit existing rule
             const index = parseInt(saveBtn.dataset.index, 10);
+            
+            // Create a temporary copy of rules without the rule being edited
+            const tempRules = rules.filter((_, i) => i !== index);
+            
+            // Check for circular dependencies with the new rule
+            if (hasCircularDependency(tempRules, findValue, replaceValue)) {
+                showStatus('This rule would create a circular dependency. Please choose a different replacement word.', 3000);
+                return;
+            }
+            
             rules[index] = { find: findValue, replace: replaceValue };
         } else {
+            // Check for circular dependencies
+            if (hasCircularDependency(rules, findValue, replaceValue)) {
+                showStatus('This rule would create a circular dependency. Please choose a different replacement word.', 3000);
+                return;
+            }
+            
             // Check for duplicates
             const exists = rules.some(rule => rule.find.toLowerCase() === findValue.toLowerCase());
             if (exists) {

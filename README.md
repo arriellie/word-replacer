@@ -6,7 +6,7 @@ A browser extension that allows you to replace specified words on web pages with
 
 - Replace words on any webpage with custom rules
 - Smart capitalization handling
-- Easy-to-use options page for managing rules
+- Easy-to-use popup interface for managing rules
 - Works across all websites
 - Persistent storage of rules
 
@@ -22,7 +22,7 @@ A browser extension that allows you to replace specified words on web pages with
 ## Usage
 
 1. Click the extension icon in your browser toolbar
-2. Use the options page to add or modify word replacement rules
+2. Use the popup interface to add or modify word replacement rules
 3. The rules will automatically apply to all web pages you visit
 
 ## Development
@@ -32,7 +32,7 @@ The extension consists of the following main components:
 - `manifest.json`: Extension configuration
 - `background.js`: Background service worker for handling extension events
 - `content.js`: Content script that performs the word replacements
-- `options.html`, `options.js`, `options.css`: User interface for managing rules
+- `popup.html`, `popup.js`: User interface for managing rules
 
 ## Contributing
 

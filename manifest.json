@@ -25,7 +25,6 @@
     "background": {
       "service_worker": "background.js"
     },
-    "options_page": "options.html",
     "action": {
       "default_popup": "popup.html",
       "default_icon": {
@@ -33,7 +32,7 @@
         "48": "icons/icon48.png",
         "128": "icons/icon128.png"
       },
-      "default_title": "Word Replacer Options"
+      "default_title": "Word Replacer"
     },
     "icons": {
       "16": "icons/icon16.png",
