@@ -2,7 +2,7 @@
     "manifest_version": 3,
     "name": "Word Replacer",
     "version": "1.0",
-    "description": "Replace words on web pages with your own custom replacements",
+    "description": "Replace words on web pages with your own custom rules",
     "permissions": [
       "storage",
       "activeTab",

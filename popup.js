@@ -19,8 +19,8 @@ function showStatus(message, duration = 2000) {
 
 // Function to load and display rules from storage
 function loadRules() {
-    chrome.storage.sync.get({ replacements: [] }, (data) => {
-        const rules = data.replacements;
+    chrome.storage.sync.get({ rules: [] }, (data) => {
+        const rules = data.rules;
         renderRules(rules);
     });
 }
@@ -74,8 +74,8 @@ function showRuleForm(mode = 'add', index = null) {
         saveBtn.dataset.mode = 'add';
     } else {
         formTitle.textContent = 'Edit Rule';
-        chrome.storage.sync.get({ replacements: [] }, (data) => {
-            const rule = data.replacements[index];
+        chrome.storage.sync.get({ rules: [] }, (data) => {
+            const rule = data.rules[index];
             findInput.value = rule.find;
             replaceInput.value = rule.replace;
             saveBtn.dataset.mode = 'edit';
@@ -108,8 +108,8 @@ function saveRule() {
         return;
     }
 
-    chrome.storage.sync.get({ replacements: [] }, (data) => {
-        const rules = data.replacements;
+    chrome.storage.sync.get({ rules: [] }, (data) => {
+        const rules = data.rules;
         
         if (saveBtn.dataset.mode === 'edit') {
             // Edit existing rule
@@ -127,7 +127,7 @@ function saveRule() {
         }
 
         // Save the updated rules
-        chrome.storage.sync.set({ replacements: rules }, () => {
+        chrome.storage.sync.set({ rules: rules }, () => {
             hideRuleForm();
             renderRules(rules);
             showStatus(saveBtn.dataset.mode === 'edit' ? 'Rule updated successfully!' : 'Rule added successfully!');
@@ -138,11 +138,11 @@ function saveRule() {
 
 // Function to handle deleting a rule
 function deleteRule(index) {
-    chrome.storage.sync.get({ replacements: [] }, (data) => {
-        const rules = data.replacements;
+    chrome.storage.sync.get({ rules: [] }, (data) => {
+        const rules = data.rules;
         const removedRule = rules.splice(index, 1)[0];
         
-        chrome.storage.sync.set({ replacements: rules }, () => {
+        chrome.storage.sync.set({ rules: rules }, () => {
             renderRules(rules);
             showStatus(`Removed rule for "${escapeHTML(removedRule.find)}".`);
             notifyTabsOfRuleChanges();

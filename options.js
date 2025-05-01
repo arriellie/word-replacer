@@ -2,7 +2,7 @@
 const findInput = document.getElementById('find-input');
 const replaceInput = document.getElementById('replace-input');
 const addButton = document.getElementById('add-button');
-const replacementsList = document.getElementById('replacements-list');
+const rulesList = document.getElementById('rules-list');
 const statusMessage = document.getElementById('status-message');
 
 // Function to display status messages
@@ -13,26 +13,26 @@ function showStatus(message, duration = 2000) {
     }, duration);
 }
 
-// Function to load and display replacements from storage
-function loadReplacements() {
-    chrome.storage.sync.get({ replacements: [] }, (data) => {
-        const replacements = data.replacements;
-        renderReplacements(replacements);
+// Function to load and display rules from storage
+function loadRules() {
+    chrome.storage.sync.get({ rules: [] }, (data) => {
+        const rules = data.rules;
+        renderRules(rules);
     });
 }
 
-// Function to render the list of replacements in the UI
-function renderReplacements(replacements) {
+// Function to render the list of rules in the UI
+function renderRules(rules) {
     // Clear the current list
-    replacementsList.innerHTML = '';
+    rulesList.innerHTML = '';
 
-    if (replacements.length === 0) {
-        replacementsList.innerHTML = '<li class="text-gray-500 italic">No replacements added yet.</li>';
+    if (rules.length === 0) {
+        rulesList.innerHTML = '<li class="text-gray-500 italic">No rules added yet.</li>';
         return;
     }
 
-    // Add each replacement to the list
-    replacements.forEach((item, index) => {
+    // Add each rule to the list
+    rules.forEach((item, index) => {
         const listItem = document.createElement('li');
         listItem.className = 'replacement-item';
 
@@ -61,7 +61,7 @@ function renderReplacements(replacements) {
         buttonContainer.appendChild(removeButton);
         listItem.appendChild(textSpan);
         listItem.appendChild(buttonContainer);
-        replacementsList.appendChild(listItem);
+        rulesList.appendChild(listItem);
     });
 }
 
@@ -70,13 +70,13 @@ function parseFindString(findString) {
     return findString.split(',').map(item => item.trim()).filter(item => item.length > 0);
 }
 
-// Function to handle editing a replacement
+// Function to handle editing a rule
 function handleEdit(event) {
     const index = parseInt(event.target.dataset.index, 10);
     
-    chrome.storage.sync.get({ replacements: [] }, (data) => {
-        const replacements = data.replacements;
-        const item = replacements[index];
+    chrome.storage.sync.get({ rules: [] }, (data) => {
+        const rules = data.rules;
+        const item = rules[index];
         
         // Populate the input fields with the current values
         findInput.value = item.find;
@@ -113,26 +113,26 @@ function notifyTabsOfRuleChanges() {
     });
 }
 
-// Function to handle updating a replacement
+// Function to handle updating a rule
 function handleUpdate(index, findValue, replaceValue) {
-    chrome.storage.sync.get({ replacements: [] }, (data) => {
-        const replacements = data.replacements;
+    chrome.storage.sync.get({ rules: [] }, (data) => {
+        const rules = data.rules;
         
-        // Update the replacement at the specified index
-        replacements[index] = { find: findValue, replace: replaceValue };
+        // Update the rule at the specified index
+        rules[index] = { find: findValue, replace: replaceValue };
         
         // Save the updated list back to storage
-        chrome.storage.sync.set({ replacements: replacements }, () => {
+        chrome.storage.sync.set({ rules: rules }, () => {
             // Clear input fields
             findInput.value = '';
             replaceInput.value = '';
             // Reset the add button
-            addButton.textContent = 'Add Replacement';
+            addButton.textContent = 'Add Rule';
             delete addButton.dataset.mode;
             delete addButton.dataset.index;
             // Re-render the list
-            renderReplacements(replacements);
-            showStatus('Replacement updated successfully!');
+            renderRules(rules);
+            showStatus('Rule updated successfully!');
             findInput.focus();
             // Notify all tabs about the rule change
             notifyTabsOfRuleChanges();
@@ -140,7 +140,7 @@ function handleUpdate(index, findValue, replaceValue) {
     });
 }
 
-// Function to handle adding a new replacement
+// Function to handle adding a new rule
 function handleAdd() {
     const findValue = findInput.value.trim();
     const replaceValue = replaceInput.value.trim();
@@ -169,29 +169,29 @@ function handleAdd() {
         return;
     }
 
-    chrome.storage.sync.get({ replacements: [] }, (data) => {
-        const replacements = data.replacements;
+    chrome.storage.sync.get({ rules: [] }, (data) => {
+        const rules = data.rules;
 
         // Check for duplicates
-        const exists = replacements.some(item => 
+        const exists = rules.some(item => 
             item.find.toLowerCase() === findValue.toLowerCase()
         );
         if (exists) {
-            showStatus(`A replacement for "${escapeHTML(findValue)}" already exists.`, 3000);
+            showStatus(`A rule for "${escapeHTML(findValue)}" already exists.`, 3000);
             return;
         }
 
-        // Add the new replacement
-        replacements.push({ find: findValue, replace: replaceValue });
+        // Add the new rule
+        rules.push({ find: findValue, replace: replaceValue });
 
         // Save the updated list back to storage
-        chrome.storage.sync.set({ replacements: replacements }, () => {
+        chrome.storage.sync.set({ rules: rules }, () => {
             // Clear input fields
             findInput.value = '';
             replaceInput.value = '';
             // Re-render the list
-            renderReplacements(replacements);
-            showStatus('Replacement added successfully!');
+            renderRules(rules);
+            showStatus('Rule added successfully!');
             findInput.focus();
             // Notify all tabs about the rule change
             notifyTabsOfRuleChanges();
@@ -199,21 +199,21 @@ function handleAdd() {
     });
 }
 
-// Function to handle removing a replacement
+// Function to handle removing a rule
 function handleRemove(event) {
     const indexToRemove = parseInt(event.target.dataset.index, 10);
 
-    chrome.storage.sync.get({ replacements: [] }, (data) => {
-        const replacements = data.replacements;
+    chrome.storage.sync.get({ rules: [] }, (data) => {
+        const rules = data.rules;
 
         // Remove the item at the specified index
-        const removedItem = replacements.splice(indexToRemove, 1)[0]; // Get the removed item for status message
+        const removedItem = rules.splice(indexToRemove, 1)[0]; // Get the removed item for status message
 
         // Save the updated list back to storage
-        chrome.storage.sync.set({ replacements: replacements }, () => {
+        chrome.storage.sync.set({ rules: rules }, () => {
             // Re-render the list
-            renderReplacements(replacements);
-            showStatus(`Removed replacement for "${escapeHTML(removedItem.find)}".`);
+            renderRules(rules);
+            showStatus(`Removed rule for "${escapeHTML(removedItem.find)}".`);
             // Notify all tabs about the rule change
             notifyTabsOfRuleChanges();
         });
@@ -238,5 +238,5 @@ replaceInput.addEventListener('keypress', (event) => {
     }
 });
 
-// Load replacements when the options page is opened
-document.addEventListener('DOMContentLoaded', loadReplacements);
+// Load rules when the options page is opened
+document.addEventListener('DOMContentLoaded', loadRules);

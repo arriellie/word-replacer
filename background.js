@@ -6,15 +6,15 @@
 // Log when the extension is installed or updated
 chrome.runtime.onInstalled.addListener((details) => {
     console.log("Word Replacer extension installed or updated.", details);
-    // You could potentially set default replacements here on first install
+    // You could potentially set default rules here on first install
     if (details.reason === "install") {
         // Maybe open the options page on first install?
         // chrome.runtime.openOptionsPage();
         console.log("Word Replacer installed for the first time!");
-         // Set initial empty replacements array if it doesn't exist
-         chrome.storage.sync.get('replacements', (data) => {
-            if (!data.replacements) {
-                chrome.storage.sync.set({ replacements: [] });
+         // Set initial empty rules array if it doesn't exist
+         chrome.storage.sync.get('rules', (data) => {
+            if (!data.rules) {
+                chrome.storage.sync.set({ rules: [] });
             }
         });
     }
@@ -35,9 +35,9 @@ chrome.action.onClicked.addListener((tab) => {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     console.log("Background script received message:", message, "from sender:", sender);
     // Example: Handle a request from content script if needed
-    if (message.action === "getReplacements") {
-        chrome.storage.sync.get({ replacements: [] }, (data) => {
-            sendResponse({ replacements: data.replacements });
+    if (message.action === "getRules") {
+        chrome.storage.sync.get({ rules: [] }, (data) => {
+            sendResponse({ rules: data.rules });
         });
         return true; // Indicates response will be sent asynchronously
     }
