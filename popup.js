@@ -103,52 +103,23 @@ function parseFindString(findString) {
 
 // Function to detect circular dependencies in rules
 function hasCircularDependency(rules, newFind, newReplace) {
-    // Create a map of all find->replace relationships
-    const ruleMap = new Map();
+    // Create a set of all find words/phrases from existing rules
+    const existingFindWords = new Set();
     rules.forEach(rule => {
-        // Split the find string into individual words/phrases
         const findItems = parseFindString(rule.find);
         findItems.forEach(item => {
-            ruleMap.set(item.toLowerCase(), rule.replace.toLowerCase());
+            existingFindWords.add(item.toLowerCase());
         });
     });
     
-    // Add the new rule to the map for checking
+    // Add the new find words/phrases to the set
     const newFindItems = parseFindString(newFind);
     newFindItems.forEach(item => {
-        ruleMap.set(item.toLowerCase(), newReplace.toLowerCase());
+        existingFindWords.add(item.toLowerCase());
     });
     
-    // Check for circular dependencies by following all possible paths
-    const visited = new Set();
-    const checkPath = (word) => {
-        if (visited.has(word)) {
-            return true; // Found a cycle
-        }
-        visited.add(word);
-        
-        // Get all words in the replacement that could be part of a rule
-        const replacementWords = ruleMap.get(word)?.split(/\s+/) || [];
-        
-        // Check each word in the replacement
-        for (const replacementWord of replacementWords) {
-            if (ruleMap.has(replacementWord) && checkPath(replacementWord)) {
-                return true;
-            }
-        }
-        
-        visited.delete(word);
-        return false;
-    };
-    
-    // Check each word in the new find string
-    for (const findItem of newFindItems) {
-        if (checkPath(findItem.toLowerCase())) {
-            return true;
-        }
-    }
-    
-    return false;
+    // Check if the entire replacement text matches any find word/phrase
+    return existingFindWords.has(newReplace.toLowerCase());
 }
 
 // Function to handle adding/editing a rule
