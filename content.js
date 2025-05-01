@@ -145,6 +145,54 @@ function shouldSkipElement(element) {
 }
 
 /**
+ * Parses the find string into individual words and phrases
+ * @param {string} findString - The string containing words and phrases to find
+ * @returns {Array<{text: string, isPhrase: boolean}>} Array of objects containing the text and whether it's a phrase
+ */
+function parseFindString(findString) {
+    const items = [];
+    let currentItem = '';
+    let inQuotes = false;
+    
+    for (let i = 0; i < findString.length; i++) {
+        const char = findString[i];
+        
+        if (char === '"') {
+            if (inQuotes) {
+                // End of phrase
+                if (currentItem.trim()) {
+                    items.push({ text: currentItem.trim(), isPhrase: true });
+                }
+                currentItem = '';
+                inQuotes = false;
+            } else {
+                // Start of phrase
+                if (currentItem.trim()) {
+                    items.push({ text: currentItem.trim(), isPhrase: false });
+                }
+                currentItem = '';
+                inQuotes = true;
+            }
+        } else if (char === ',' && !inQuotes) {
+            // End of word
+            if (currentItem.trim()) {
+                items.push({ text: currentItem.trim(), isPhrase: false });
+            }
+            currentItem = '';
+        } else {
+            currentItem += char;
+        }
+    }
+    
+    // Add the last item
+    if (currentItem.trim()) {
+        items.push({ text: currentItem.trim(), isPhrase: inQuotes });
+    }
+    
+    return items;
+}
+
+/**
  * Performs the word replacements within a given DOM node.
  * @param {Node} node - The DOM node to process (usually document.body or a newly added node).
  */
@@ -203,16 +251,27 @@ function performReplacements(node) {
         const currentReplacements = [];
 
         for (const rule of replacements) {
-            const findRegex = new RegExp(`(^|\\s)${escapeRegExp(rule.find)}($|\\s)`, 'gi');
+            const findItems = parseFindString(rule.find);
             
-            if (findRegex.test(currentText)) {
-                currentText = currentText.replace(findRegex, (match, leadingSpace, trailingSpace) => {
-                    nodeValueChanged = true;
-                    const originalWord = match.trim();
-                    const replacement = smartCapitalize(originalWord, rule.replace);
-                    currentReplacements.push({ original: originalWord, replaced: replacement });
-                    return (leadingSpace || '') + replacement + (trailingSpace || '');
-                });
+            for (const item of findItems) {
+                let findRegex;
+                if (item.isPhrase) {
+                    // For phrases, match the entire phrase as a single unit
+                    findRegex = new RegExp(`(^|\\s)${escapeRegExp(item.text)}($|\\s)`, 'gi');
+                } else {
+                    // For individual words, match the word exactly
+                    findRegex = new RegExp(`(^|\\s)${escapeRegExp(item.text)}($|\\s)`, 'gi');
+                }
+                
+                if (findRegex.test(currentText)) {
+                    currentText = currentText.replace(findRegex, (match, leadingSpace, trailingSpace) => {
+                        nodeValueChanged = true;
+                        const originalWord = match.trim();
+                        const replacement = smartCapitalize(originalWord, rule.replace);
+                        currentReplacements.push({ original: originalWord, replaced: replacement });
+                        return (leadingSpace || '') + replacement + (trailingSpace || '');
+                    });
+                }
             }
         }
 

@@ -4,6 +4,7 @@ const replaceInput = document.getElementById('replace-input');
 const addButton = document.getElementById('add-button');
 const replacementsList = document.getElementById('replacements-list');
 const statusMessage = document.getElementById('status-message');
+const isPhraseCheckbox = document.getElementById('is-phrase');
 
 // Function to display status messages
 function showStatus(message, duration = 2000) {
@@ -34,11 +35,18 @@ function renderReplacements(replacements) {
     // Add each replacement to the list
     replacements.forEach((item, index) => {
         const listItem = document.createElement('li');
-        listItem.className = 'replacement-item'; // Add class for styling
+        listItem.className = 'replacement-item';
 
         const textSpan = document.createElement('span');
         textSpan.className = 'replacement-text';
-        textSpan.innerHTML = `Find: <strong>${escapeHTML(item.find)}</strong>, Replace with: <strong>${escapeHTML(item.replace)}</strong>`; // Use innerHTML carefully
+        
+        // Parse the find string to show phrases in quotes
+        const findItems = parseFindString(item.find);
+        const formattedFind = findItems.map(item => 
+            item.isPhrase ? `"${item.text}"` : item.text
+        ).join(', ');
+        
+        textSpan.innerHTML = `Find: <strong>${escapeHTML(formattedFind)}</strong>, Replace with: <strong>${escapeHTML(item.replace)}</strong>`;
 
         const buttonContainer = document.createElement('div');
         buttonContainer.className = 'flex gap-2';
@@ -65,6 +73,50 @@ function renderReplacements(replacements) {
     });
 }
 
+// Function to parse the find string into individual words and phrases
+function parseFindString(findString) {
+    const items = [];
+    let currentItem = '';
+    let inQuotes = false;
+    
+    for (let i = 0; i < findString.length; i++) {
+        const char = findString[i];
+        
+        if (char === '"') {
+            if (inQuotes) {
+                // End of phrase
+                if (currentItem.trim()) {
+                    items.push({ text: currentItem.trim(), isPhrase: true });
+                }
+                currentItem = '';
+                inQuotes = false;
+            } else {
+                // Start of phrase
+                if (currentItem.trim()) {
+                    items.push({ text: currentItem.trim(), isPhrase: false });
+                }
+                currentItem = '';
+                inQuotes = true;
+            }
+        } else if (char === ',' && !inQuotes) {
+            // End of word
+            if (currentItem.trim()) {
+                items.push({ text: currentItem.trim(), isPhrase: false });
+            }
+            currentItem = '';
+        } else {
+            currentItem += char;
+        }
+    }
+    
+    // Add the last item
+    if (currentItem.trim()) {
+        items.push({ text: currentItem.trim(), isPhrase: inQuotes });
+    }
+    
+    return items;
+}
+
 // Function to handle editing a replacement
 function handleEdit(event) {
     const index = parseInt(event.target.dataset.index, 10);
@@ -76,6 +128,7 @@ function handleEdit(event) {
         // Populate the input fields with the current values
         findInput.value = item.find;
         replaceInput.value = item.replace;
+        isPhraseCheckbox.checked = item.isPhrase || false;
         
         // Change the add button to an update button
         addButton.textContent = 'Update';
@@ -109,18 +162,19 @@ function notifyTabsOfRuleChanges() {
 }
 
 // Function to handle updating a replacement
-function handleUpdate(index, findValue, replaceValue) {
+function handleUpdate(index, findValue, replaceValue, isPhrase) {
     chrome.storage.sync.get({ replacements: [] }, (data) => {
         const replacements = data.replacements;
         
         // Update the replacement at the specified index
-        replacements[index] = { find: findValue, replace: replaceValue };
+        replacements[index] = { find: findValue, replace: replaceValue, isPhrase };
         
         // Save the updated list back to storage
         chrome.storage.sync.set({ replacements: replacements }, () => {
             // Clear input fields
             findInput.value = '';
             replaceInput.value = '';
+            isPhraseCheckbox.checked = false;
             // Reset the add button
             addButton.textContent = 'Add Replacement';
             delete addButton.dataset.mode;
@@ -150,6 +204,13 @@ function handleAdd() {
         return;
     }
 
+    // Validate the find string format
+    const findItems = parseFindString(findValue);
+    if (findItems.length === 0) {
+        showStatus('Please enter at least one word or phrase to find.', 3000);
+        return;
+    }
+
     // Check if we're in edit mode
     if (addButton.dataset.mode === 'edit') {
         const index = parseInt(addButton.dataset.index, 10);
@@ -161,7 +222,9 @@ function handleAdd() {
         const replacements = data.replacements;
 
         // Check for duplicates
-        const exists = replacements.some(item => item.find.toLowerCase() === findValue.toLowerCase());
+        const exists = replacements.some(item => 
+            item.find.toLowerCase() === findValue.toLowerCase()
+        );
         if (exists) {
             showStatus(`A replacement for "${escapeHTML(findValue)}" already exists.`, 3000);
             return;
