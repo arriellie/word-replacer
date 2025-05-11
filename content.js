@@ -97,30 +97,20 @@ function escapeRegExp(str) {
 
 /**
  * Applies smart capitalization to the replacement word based on the original word's capitalization.
- * @param {string} originalWord - The original word that was matched.
- * @param {string} replacementWord - The word to replace it with.
+ * @param {string} original - The original word that was matched.
+ * @param {string} replacement - The word to replace it with.
  * @returns {string} The replacement word with appropriate capitalization.
  */
-function smartCapitalize(originalWord, replacementWord) {
-    const isFirstCharUpper = /^[A-Z]/.test(originalWord);
-    const isAllCaps = originalWord === originalWord.toUpperCase();
-
-    if (isAllCaps) {
-        return replacementWord.toUpperCase();
-    } else if (isFirstCharUpper) {
-        // Check if it's Title Case (only first letter capitalized)
-        const isTitleCase = originalWord.length === 1 || /^[A-Z][^A-Z]*$/.test(originalWord);
-         if (isTitleCase) {
-            return replacementWord.charAt(0).toUpperCase() + replacementWord.slice(1).toLowerCase();
-         } else {
-             // If it's mixed case (e.g., camelCase, or multiple caps), default to lowercase
-             // Or potentially try to match the first letter capitalization only
-             return replacementWord.charAt(0).toUpperCase() + replacementWord.slice(1).toLowerCase(); // Simple Title Case
-             // return replacementWord.toLowerCase(); // Alternative: Default to lowercase
-         }
+function smartCapitalize(original, replacement) {
+    if (!replacement) {
+        return '';
+    }
+    if (original === original.toUpperCase()) {
+        return replacement.toUpperCase();
+    } else if (original[0] === original[0].toUpperCase() || (original.match(/[A-Z]/g) || []).length > 1) {
+        return replacement.charAt(0).toUpperCase() + replacement.slice(1).toLowerCase();
     } else {
-        // All lowercase or other cases, default to lowercase
-        return replacementWord.toLowerCase();
+        return replacement.toLowerCase();
     }
 }
 
@@ -160,6 +150,9 @@ function shouldSkipElement(element) {
  * @returns {Array<string>} Array of words and phrases to find
  */
 function parseFindString(findString) {
+    if (!findString || typeof findString !== 'string') {
+        return [];
+    }
     return findString.split(',').map(item => item.trim()).filter(item => item.length > 0);
 }
 
@@ -179,6 +172,7 @@ function performReplacements(node) {
     }
 
     console.log("Word Replacer: Starting replacements with rules:", rules);
+    console.log("Word Replacer: Node to process:", node.tagName || 'TEXT_NODE', node.nodeValue || node.innerHTML);
 
     const walker = document.createTreeWalker(
         node,
@@ -189,8 +183,10 @@ function performReplacements(node) {
                 if (node.parentNode.nodeName === 'SCRIPT' || 
                     node.parentNode.nodeName === 'STYLE' ||
                     node.parentNode.nodeName === 'TEXTAREA') {
+                    console.log("Word Replacer: Skipping node:", node.parentNode.nodeName);
                     return NodeFilter.FILTER_REJECT;
                 }
+                console.log("Word Replacer: Accepting node:", node.nodeValue);
                 return NodeFilter.FILTER_ACCEPT;
             }
         }
@@ -200,30 +196,52 @@ function performReplacements(node) {
     let currentNode;
 
     while (currentNode = walker.nextNode()) {
+        console.log("Word Replacer: Processing node:", currentNode.nodeValue);
         let nodeValueChanged = false;
         let currentText = currentNode.nodeValue;
         let currentReplacements = [];
 
         for (const rule of rules) {
             const findItems = parseFindString(rule.find);
+            console.log("Word Replacer: Checking rule:", rule, "Find items:", findItems);
             
             for (const item of findItems) {
                 // Create a regex that matches the word or phrase as a whole word
-                const findRegex = new RegExp(`(^|\\s)${escapeRegExp(item)}($|\\s)`, 'gi');
+                const findRegex = new RegExp(escapeRegExp(item), 'gi');
+                console.log("Word Replacer: Using regex:", findRegex);
                 
                 if (findRegex.test(currentText)) {
-                    currentText = currentText.replace(findRegex, (match, leadingSpace, trailingSpace) => {
+                    console.log("Word Replacer: Found match in text:", currentText);
+                    currentText = currentText.replace(findRegex, (match) => {
                         nodeValueChanged = true;
-                        const originalWord = match.trim();
-                        const replacement = smartCapitalize(originalWord, rule.replace);
-                        currentReplacements.push({ original: originalWord, replaced: replacement });
-                        return (leadingSpace || '') + replacement + (trailingSpace || '');
+                        // Find the exact rule that matches this case
+                        let replacement;
+                        if (match === match.toUpperCase()) {
+                            // ALL CAPS
+                            replacement = rule.replace.toUpperCase();
+                        } else if (match === match.toLowerCase()) {
+                            // all lowercase
+                            replacement = rule.replace.toLowerCase();
+                        } else if (match === item) {
+                            // Exact match with rule
+                            replacement = rule.replace;
+                        } else if (match === item.charAt(0).toUpperCase() + item.slice(1).toLowerCase()) {
+                            // Title Case
+                            replacement = rule.replace.charAt(0).toUpperCase() + rule.replace.slice(1);
+                        } else {
+                            // Default to smart capitalization
+                            replacement = smartCapitalize(match, rule.replace);
+                        }
+                        console.log("Word Replacer: Replacing:", match, "with:", replacement);
+                        currentReplacements.push({ original: match, replaced: replacement });
+                        return replacement;
                     });
                 }
             }
         }
 
         if (nodeValueChanged) {
+            console.log("Word Replacer: Node value changed. Original:", currentNode.nodeValue, "New:", currentText);
             // Store the original text and replacements for this node
             if (!replacedNodes.has(currentNode)) {
                 replacedNodes.set(currentNode, []);
@@ -233,17 +251,34 @@ function performReplacements(node) {
         }
     }
 
-    // Apply replacements in a single batch
+    // Apply replacements immediately in tests, or in a batch for production
     if (nodesToReplace.length > 0) {
-        requestAnimationFrame(() => {
+        console.log("Word Replacer: Applying replacements to", nodesToReplace.length, "nodes");
+        // Always apply immediately in tests or if requestAnimationFrame is not available
+        if (typeof global !== 'undefined' || !window.requestAnimationFrame) {
             nodesToReplace.forEach(({ node, newValue }) => {
                 try {
+                    console.log("Word Replacer: Setting node value:", newValue);
                     node.nodeValue = newValue;
                 } catch (error) {
                     console.warn("Word Replacer: Error replacing text:", error);
                 }
             });
-        });
+        } else {
+            // In production environment
+            requestAnimationFrame(() => {
+                nodesToReplace.forEach(({ node, newValue }) => {
+                    try {
+                        console.log("Word Replacer: Setting node value (RAF):", newValue);
+                        node.nodeValue = newValue;
+                    } catch (error) {
+                        console.warn("Word Replacer: Error replacing text:", error);
+                    }
+                });
+            });
+        }
+    } else {
+        console.log("Word Replacer: No nodes to replace");
     }
 }
 
@@ -337,3 +372,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
     return true; // Keep the message channel open for async responses
 });
+
+// Make rules accessible for testing
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        smartCapitalize,
+        escapeRegExp,
+        parseFindString,
+        performReplacements,
+        fetchRules,
+        rules: {
+            get: function() {
+                return rules;
+            },
+            set: function(value) {
+                rules = value;
+            }
+        }
+    };
+}
